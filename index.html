@@ -338,6 +338,7 @@ body.reduced .mini16 i.star,body.reduced .bar4 i.star{animation:none}
 /* Free Mix song picker: three songs per deck plus play/stop */
 .tracks{display:grid;grid-template-columns:repeat(3,1fr) 1.3fr;gap:6px}
 .trk{min-height:40px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);font-weight:800;font-size:14px;font-variant-numeric:tabular-nums}
+.tracks.new .trk{outline:3px solid var(--pink);outline-offset:2px;animation:spotp 1s ease-in-out infinite}
 .trk[aria-pressed="true"]{background:var(--butter);border-color:var(--butter);color:#3a2d00}
 .tracks .btn{min-height:40px;padding:0 6px;font-size:14px;margin:0}
 @media (orientation:landscape) and (max-height:640px){.tracks{gap:4px;margin-top:auto}.trk,.tracks .btn{min-height:30px;font-size:12px;border-radius:10px}}
@@ -1056,7 +1057,7 @@ function selectTrack(id,i,restart){
   }
 }
 function resetTracks(){selectTrack('A',0,false);selectTrack('B',0,false);}
-$$('[data-trk]').forEach(b=>b.addEventListener('click',()=>{if(!S.free)return;buzz(8);selectTrack(b.dataset.trk,+b.dataset.i,true);}));
+$$('[data-trk]').forEach(b=>b.addEventListener('click',()=>{if(!S.free)return;buzz(8);selectTrack(b.dataset.trk,+b.dataset.i,true);if(CU.on&&$('#cue').textContent==='NEW SONGS')hideCue();$$('.tracks').forEach(e=>e.classList.remove('new'));}));
 function setBpmB(b){const s=Math.abs(b-BASE.A)<=.4?BASE.A:b;if(s===BASE.A&&b!==BASE.A&&!LS.snapped)buzz(15);LS.snapped=(s===BASE.A);setPitch((s/BASE.B-1)*100);}
 function resetMix(){
   for(const id of['A','B']){P[id].vol=.8;for(const k of['low','mid','high'])P[id][k]=.5;for(const k of['vol','low','mid','high'])paintKnob(id,k);applyDeck(id);}
@@ -1360,6 +1361,11 @@ function enterFree(){
   $('#btnNext').hidden=true;['#btnGo','#btnDemo','#btnAssist','#btnRetry'].forEach(s=>{$(s).hidden=true;});
   resetTracks();ensureA();if(!decks.B.playing){setPitch(MATCH_PITCH);joinB(0);}
   applyLocks();refreshStamps();
+  say('New songs! Tap the glowing numbers to swap tracks.');$('#nowTxt').textContent='3 songs on each deck. Tap the glowing numbers!';
+  $$('.tracks').forEach(e=>e.classList.add('new'));
+  showCue('NEW SONGS','cueNext','[data-tracks="A"]','above',null,true);
+  clearTimeout(CU.t);CU.t=setTimeout(hideCue,12000);
+  setTimeout(()=>{const t=$('[data-tracks="A"]');if(t&&t.scrollIntoView)t.scrollIntoView({block:'center',behavior:'smooth'});},250);
 }
 $('#btnFree').addEventListener('click',enterFree);
 $('#btnAgain').addEventListener('click',()=>{$('#finale').hidden=true;S.finale=false;S.layer=0;S.done=[false,false,false,false,false];S.stats={tapDiffs:[],align:null,phraseTries:0,bass:false};RM.born=[];goLesson(0);});
@@ -1388,8 +1394,8 @@ document.addEventListener('keydown',e=>{if(e.code==='Space'&&S.state==='play'&&S
 let SEEN=false;try{SEEN=localStorage.getItem('zdj_seen')==='1';}catch(e){}
 function markSeen(){SEEN=true;try{localStorage.setItem('zdj_seen','1');}catch(e){}}
 const CU={on:false,sel:null,tgt:null,t:0};
-function showCue(text,kind,sel,pos,ysel){
-  if(SEEN)return;
+function showCue(text,kind,sel,pos,ysel,force){
+  if(SEEN&&!force)return;
   hideCue();
   const c=$('#cue');c.textContent=text;c.className='cue '+(kind||'')+(pos==='below'?' below':'');c.hidden=false;
   CU.on=true;CU.sel=sel;CU.tgt=$(sel);CU.ytgt=ysel?$(ysel):null;CU.below=pos==='below';
