@@ -355,8 +355,11 @@ body.reduced #splash .ovc *{animation:none!important}
 .cue.cueNext{background:var(--pink);color:var(--pink-ink);border-color:var(--pink-ink);box-shadow:0 6px 0 var(--pink-ink),0 0 30px rgba(255,122,198,.7)}
 .cue::after{content:"";position:absolute;left:var(--ax,50%);bottom:-22px;margin-left:-12px;border:12px solid transparent;border-top:14px solid currentColor;border-bottom:0;filter:none}
 @keyframes cueBob{50%{transform:translateY(-8px)}}
+.cue.below{animation-name:cueBobDn}
+.cue.below::after{bottom:auto;top:-22px;border-top:0;border-bottom:14px solid currentColor}
+@keyframes cueBobDn{50%{transform:translateY(8px)}}
 .cueTarget{outline:5px solid var(--pink);outline-offset:4px;animation:spotp 1s ease-in-out infinite}
-@media (orientation:landscape) and (max-height:640px){.cue{font-size:26px;padding:3px 14px 5px;border-width:3px;border-radius:16px}.cue::after{bottom:-17px;border-width:9px;margin-left:-9px;border-top-width:11px}}
+@media (orientation:landscape) and (max-height:640px){.cue{font-size:26px;padding:3px 14px 5px;border-width:3px;border-radius:16px}.cue::after{bottom:-17px;border-width:9px;margin-left:-9px;border-top-width:11px}.cue.below::after{top:-17px;bottom:auto;border-top-width:0;border-bottom-width:11px}}
 @media (prefers-reduced-motion:reduce){.cue,.cueTarget{animation:none}}
 body.reduced .cue,body.reduced .cueTarget{animation:none}
 </style>
@@ -1124,7 +1127,7 @@ function scrollToEl(el){
 /* read phase: glow on the lesson card + 10 s timer, then glide to the controls */
 function startReading(){
   LS.reading=true;LS.readLeft=10;
-  if(S.state!=='tour')showCue('READ ME','cueRead','#booCard');
+  if(S.state!=='tour')showCue('READ ME','cueRead','#booCard','below');
   $('#booCard').classList.add('readGlow');$('#readbar').hidden=false;
   const f=$('#readFill');f.style.transition='none';f.style.width='100%';void f.offsetWidth;f.style.transition='width 10s linear';f.style.width='0%';
   $('#readTxt').textContent='Read me! Moving to the controls in 10s';
@@ -1323,7 +1326,7 @@ function complete(){
   $('#btnNext').hidden=false;['#btnGo','#btnDemo','#btnAssist','#btnRetry'].forEach(s=>{$(s).hidden=true;});
   refreshStamps();RM.talkUntil=performance.now()+3500;
   celebrateAtBar(i===4);
-  showCue('HIT NEXT','cueNext','#btnNext');
+  showCue('HIT NEXT','cueNext','#btnNext','below');
   scrollTo({top:0,behavior:S.reduced?'auto':'smooth'});
 }
 $('#btnNext').addEventListener('click',()=>{if(S.lesson<4)goLesson(S.lesson+1);else showFinale();});
@@ -1384,11 +1387,11 @@ document.addEventListener('keydown',e=>{if(e.code==='Space'&&S.state==='play'&&S
 let SEEN=false;try{SEEN=localStorage.getItem('zdj_seen')==='1';}catch(e){}
 function markSeen(){SEEN=true;try{localStorage.setItem('zdj_seen','1');}catch(e){}}
 const CU={on:false,sel:null,tgt:null,t:0};
-function showCue(text,kind,sel){
+function showCue(text,kind,sel,pos,ysel){
   if(SEEN)return;
   hideCue();
-  const c=$('#cue');c.textContent=text;c.className='cue '+(kind||'');c.hidden=false;
-  CU.on=true;CU.sel=sel;CU.tgt=$(sel);
+  const c=$('#cue');c.textContent=text;c.className='cue '+(kind||'')+(pos==='below'?' below':'');c.hidden=false;
+  CU.on=true;CU.sel=sel;CU.tgt=$(sel);CU.ytgt=ysel?$(ysel):null;CU.below=pos==='below';
   if(kind==='cueNext'&&CU.tgt)CU.tgt.classList.add('cueTarget');
 }
 function hideCue(){
@@ -1403,7 +1406,9 @@ function placeCue(){
   if(!r.width||!r.height){c.style.visibility='hidden';return;}
   const w=c.offsetWidth,h=c.offsetHeight,vw=innerWidth,cx=r.left+r.width/2;
   const left=clamp(cx-w/2,8,vw-w-8);
-  let top=r.top-h-30;if(top<8)top=8;
+  const ry=CU.ytgt?CU.ytgt.getBoundingClientRect():r;
+  let top=CU.below?ry.bottom+30:ry.top-h-30;
+  top=clamp(top,8,Math.max(8,innerHeight-h-12));
   c.style.visibility='visible';c.style.transform='';
   c.style.left=left+'px';c.style.top=top+'px';
   c.style.setProperty('--ax',clamp(cx-left,24,w-24)+'px');
@@ -1425,7 +1430,7 @@ function openTour(first){
 }
 function showTour(){
   const T=TOUR[tourI];
-  if(tourFirst&&!SEEN){showCue('READ ME','cueRead','.tourCard');CU.t=setTimeout(()=>showCue('HIT NEXT','cueNext','#tourNext'),4500);}RM.speaker=T.who;RM.talkUntil=performance.now()+4500;
+  if(tourFirst&&!SEEN){showCue('READ ME','cueRead','.tourCard');CU.t=setTimeout(()=>showCue('HIT NEXT','cueNext','#tourNext','above','.tourCard'),4500);}RM.speaker=T.who;RM.talkUntil=performance.now()+4500;
   $('#tourTitle').textContent=T.title;$('#tourText').textContent=T.text;$('#tourCount').textContent=`${tourI+1} of ${TOUR.length}`;
   $('#tourSkip').hidden=tourFirst;
   $('#tourBack').disabled=tourI===0;$('#tourNext').textContent=tourI===TOUR.length-1?(tourFirst?'Start lesson 1':'Done'):'Next';
