@@ -339,9 +339,10 @@ body.reduced .mini16 i.star,body.reduced .bar4 i.star{animation:none}
 .tracks{display:grid;grid-template-columns:repeat(3,1fr) 1.3fr;gap:6px}
 .trk{min-height:40px;border-radius:12px;border:2px solid var(--line);background:var(--panel2);font-weight:800;font-size:14px;font-variant-numeric:tabular-nums}
 .tracks.new .trk{outline:3px solid var(--pink);outline-offset:2px;animation:spotp 1s ease-in-out infinite}
+.trk.bonus{font-size:12px;letter-spacing:.03em;border-color:rgba(255,122,198,.7);color:var(--pink)}
 .trk[aria-pressed="true"]{background:var(--butter);border-color:var(--butter);color:#3a2d00}
 .tracks .btn{min-height:40px;padding:0 6px;font-size:14px;margin:0}
-@media (orientation:landscape) and (max-height:640px){.tracks{gap:4px;margin-top:auto}.trk,.tracks .btn{min-height:30px;font-size:12px;border-radius:10px}}
+@media (orientation:landscape) and (max-height:640px){.tracks{gap:3px;margin-top:auto;grid-template-columns:repeat(3,1fr) 1.25fr repeat(3,1fr)}.trk,.tracks .btn{min-height:30px;font-size:11px;border-radius:9px;padding:0}.trk.bonus{font-size:10px;letter-spacing:0}.tracks .btn{font-size:11px}}
 #splash{z-index:60;background:radial-gradient(circle at 50% 40%,#3a2468,#16122a 70%);transition:opacity .5s,visibility .5s;cursor:pointer}
 #splash.out{opacity:0;visibility:hidden}
 #splash .ovc canvas{animation:spPop .9s cubic-bezier(.2,1.4,.4,1) both}
@@ -678,15 +679,111 @@ const TRACKS={
   {name:'Moonlit Mop',bpm:124,key:'A minor',chords:CH,roots:ROOT,bass:[2,6,10,14],arp:[0,3,6,10,13],clap:[4,12]},
   {name:'Gravestone Groove',bpm:122,key:'D minor',chords:[[57,62,65],[58,62,65],[57,60,65],[55,60,64]],roots:[38,34,29,36],bass:[2,3,6,10,11,14],arp:[1,4,7,9,12,15],clap:[4,12,15]},
   {name:'Midnight Marrow',bpm:126,key:'E minor',chords:[[59,64,67],[55,60,64],[59,62,67],[57,62,66]],roots:[40,36,31,38],bass:[2,6,8,10,14],arp:[0,2,4,6,8,10,12,14],clap:[4,12]}
+,
+  {name:'Neon Necro',tag:'Y2K',style:'y2k',bpm:138,key:'A minor',chords:CH,roots:ROOT,arp:[0,2,3,5,7,8,10,11,13,15],clap:[4,12]},
+  {name:'Crypt Crusher',tag:'HARD',style:'hard',bpm:150,key:'E minor',chords:[[59,64,67],[55,60,64],[59,62,67],[57,62,66]],roots:[40,36,31,38],clap:[4,12]},
+  {name:'Wobble of the Dead',tag:'DUB',style:'dub',bpm:140,key:'F minor',chords:[[53,56,60],[49,53,56],[56,60,63],[51,55,58]],roots:[29,25,32,27],clap:[8]}
  ],
  B:[
   {name:'Cobweb Cha-Cha',bpm:128,key:'A minor',chords:CH,roots:ROOT,bass:[1,2,3,5,6,7,9,10,11,13,14,15],arp:[0,2,5,8,10,13],clap:[4,12]},
   {name:'Skeleton Skip',bpm:126,key:'D minor',chords:[[57,62,65],[58,62,65],[57,60,65],[55,60,64]],roots:[38,34,29,36],bass:[2,3,6,7,10,11,14,15],arp:[0,3,5,8,11,13],clap:[4,12]},
-  {name:'Phantom Funk',bpm:130,key:'E minor',chords:[[59,64,67],[55,60,64],[59,62,67],[57,62,66]],roots:[40,36,31,38],bass:[1,3,5,7,9,11,13,15],arp:[0,3,6,9,12],clap:[4,12,14]}
+  {name:'Phantom Funk',bpm:130,key:'E minor',chords:[[59,64,67],[55,60,64],[59,62,67],[57,62,66]],roots:[40,36,31,38],bass:[1,3,5,7,9,11,13,15],arp:[0,3,6,9,12],clap:[4,12,14]},
+  {name:'Glow Stick Ghoul',tag:'Y2K',style:'y2k',bpm:140,key:'A minor',chords:CH,roots:ROOT,arp:[1,2,4,6,7,9,10,12,14],clap:[4,12]},
+  {name:'Rigor Mortis Rush',tag:'HARD',style:'hard',bpm:150,key:'E minor',chords:[[59,64,67],[55,60,64],[59,62,67],[57,62,66]],roots:[40,36,31,38],clap:[4,12]},
+  {name:'Bass Cannon Boo',tag:'DUB',style:'dub',bpm:140,key:'F minor',chords:[[53,56,60],[49,53,56],[56,60,63],[51,55,58]],roots:[29,25,32,27],clap:[8]}
  ]
 };
 decks.A.track=TRACKS.A[0];decks.B.track=TRACKS.B[0];decks.A.ti=0;decks.B.ti=0;
+
+/* ---------- bonus crate voices: Y2K rave, hardstyle, dubstep (Free Mix only) ---------- */
+const HARDC=(()=>{const c=new Float32Array(1024);for(let i=0;i<1024;i++){const x=i/512-1;c[i]=Math.max(-1,Math.min(1,x*6))*.8;}return c;})();
+function duck(d,t,depth,rel){const g=d.pad.gain;g.setValueAtTime(depth,t);g.linearRampToValueAtTime(1,t+(rel||.24));}
+/* LOW: hardstyle kick = pitched sine driven into a clipper, long and punchy */
+function hardKick(d,t){
+  const o=ctx.createOscillator(),e=ctx.createGain(),w=ctx.createWaveShaper();
+  w.curve=HARDC;o.type='sine';
+  o.frequency.setValueAtTime(260,t);o.frequency.exponentialRampToValueAtTime(62,t+.07);o.frequency.exponentialRampToValueAtTime(47,t+.3);
+  e.gain.setValueAtTime(.55,t);e.gain.setValueAtTime(.5,t+.1);e.gain.exponentialRampToValueAtTime(.001,t+.32);
+  o.connect(w);w.connect(e);e.connect(d.in);o.start(t);o.stop(t+.34);
+  noiseHit(d,t,'highpass',2500,.015,.2);duck(d,t,.2,.2);
+}
+/* LOW: gritty offbeat bass for hardstyle */
+function grind(d,t,m,dur,g){
+  const o=ctx.createOscillator(),o2=ctx.createOscillator(),s=ctx.createOscillator(),f=ctx.createBiquadFilter(),w=ctx.createWaveShaper(),e=ctx.createGain(),e2=ctx.createGain();
+  o.type='sawtooth';o2.type='square';s.type='sine';o.frequency.value=midi(m+12);o2.frequency.value=midi(m+12);o2.detune.value=9;s.frequency.value=midi(m);
+  w.curve=HARDC;f.type='lowpass';f.Q.value=3;f.frequency.setValueAtTime(1500,t);f.frequency.exponentialRampToValueAtTime(260,t+dur);
+  e.gain.setValueAtTime(.0001,t);e.gain.exponentialRampToValueAtTime(g*.6,t+.006);e.gain.exponentialRampToValueAtTime(.001,t+dur);
+  e2.gain.setValueAtTime(.0001,t);e2.gain.exponentialRampToValueAtTime(g,t+.01);e2.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(w);o2.connect(w);w.connect(f);f.connect(e);e.connect(d.in);s.connect(e2);e2.connect(d.in);
+  o.start(t);o2.start(t);s.start(t);o.stop(t+dur+.02);o2.stop(t+dur+.02);s.stop(t+dur+.02);
+}
+/* MID/HIGH: hardstyle screech lead, two saws gliding up through a resonant band */
+function screech(d,t,m,dur,g){
+  const e=ctx.createGain(),f=ctx.createBiquadFilter(),w=ctx.createWaveShaper();
+  w.curve=SAT;f.type='bandpass';f.Q.value=5;f.frequency.setValueAtTime(1400,t);f.frequency.linearRampToValueAtTime(3200,t+dur);
+  e.gain.setValueAtTime(.0001,t);e.gain.exponentialRampToValueAtTime(g,t+.02);e.gain.linearRampToValueAtTime(g*.8,t+dur*.8);e.gain.exponentialRampToValueAtTime(.001,t+dur);
+  [-14,14].forEach(dt=>{const o=ctx.createOscillator();o.type='sawtooth';o.detune.value=dt;
+    o.frequency.setValueAtTime(midi(m-5),t);o.frequency.exponentialRampToValueAtTime(midi(m),t+.06);o.connect(f);o.start(t);o.stop(t+dur+.02);});
+  f.connect(w);w.connect(e);send(d,e,d.pad,.3);
+}
+/* MID/HIGH: Y2K supersaw, three detuned saws per note with a bright filter sweep */
+function superSaw(d,t,notes,dur,g,cut){
+  notes.forEach(m=>{[-16,0,16].forEach(dt=>{
+    const o=ctx.createOscillator(),f=ctx.createBiquadFilter(),e=ctx.createGain();
+    o.type='sawtooth';o.frequency.value=midi(m);o.detune.value=dt+(Math.random()-.5)*5;
+    f.type='lowpass';f.Q.value=1.2;f.frequency.setValueAtTime(cut||4800,t);f.frequency.exponentialRampToValueAtTime(900,t+dur);
+    e.gain.setValueAtTime(.0001,t);e.gain.exponentialRampToValueAtTime(g,t+.005);e.gain.exponentialRampToValueAtTime(.001,t+dur);
+    o.connect(f);f.connect(e);send(d,e,d.pad,.28);o.start(t);o.stop(t+dur+.02);
+  });});
+}
+/* LOW/MID: dubstep wobble, a saw and square through a resonant filter that an LFO opens and closes */
+function wobble(d,t,m,dur,g,rate){
+  const o=ctx.createOscillator(),o2=ctx.createOscillator(),s=ctx.createOscillator(),f=ctx.createBiquadFilter(),w=ctx.createWaveShaper(),e=ctx.createGain(),e2=ctx.createGain();
+  const lfo=ctx.createOscillator(),lg=ctx.createGain();
+  o.type='sawtooth';o2.type='square';s.type='sine';o.frequency.value=midi(m+12);o2.frequency.value=midi(m+12);o2.detune.value=-11;s.frequency.value=midi(m);
+  f.type='lowpass';f.Q.value=9;f.frequency.value=650;lfo.type='sine';lfo.frequency.value=rate;lg.gain.value=560;lfo.connect(lg);lg.connect(f.frequency);
+  w.curve=SAT;
+  e.gain.setValueAtTime(.0001,t);e.gain.exponentialRampToValueAtTime(g,t+.01);e.gain.setValueAtTime(g,t+dur-.04);e.gain.exponentialRampToValueAtTime(.001,t+dur);
+  e2.gain.setValueAtTime(.0001,t);e2.gain.exponentialRampToValueAtTime(g*.9,t+.012);e2.gain.setValueAtTime(g*.9,t+dur-.04);e2.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(f);o2.connect(f);f.connect(w);w.connect(e);e.connect(d.in);s.connect(e2);e2.connect(d.in);
+  [o,o2,s,lfo].forEach(x=>{x.start(t);x.stop(t+dur+.02);});
+}
+function snare(d,t,g){noiseHit(d,t,'bandpass',2200,.16,.38*g,.9,.25);const o=ctx.createOscillator(),e=ctx.createGain();o.type='triangle';o.frequency.setValueAtTime(220,t);o.frequency.exponentialRampToValueAtTime(130,t+.08);e.gain.setValueAtTime(.3*g,t);e.gain.exponentialRampToValueAtTime(.001,t+.12);o.connect(e);e.connect(d.in);o.start(t);o.stop(t+.14);}
+function playGenre(d,step,t){
+  const T=d.track,s=step%16,bar=Math.floor(step/16)%4,ch=T.chords[bar],r=T.roots[bar],sd=d.stepDur,B=d.id==='B';
+  const tt=t+(s%2?sd*.08:0),v=.9+Math.random()*.2;
+  if(T.style==='y2k'){
+    if(s%4===0){kick(d,t);}
+    if(s%4===2){bassNote(d,t,r,sd*1.7,.46,true);hat(d,tt,true,v);}
+    if(T.clap.includes(s))clap(d,t,.9);
+    if(bar===3&&s>=12&&s%2===0)clap(d,t,.5+(s-12)*.08);
+    if(s===0)padChord(d,t,ch,sd*16,.03);
+    if(s%2===1)shaker(d,tt,v);
+    if(T.arp.includes(s))superSaw(d,tt,[ch[(s+bar)%3]+(B?24:12)],sd*1.5,.042,5200);
+    if((s===0||s===10)&&bar%2===0)superSaw(d,t,ch,sd*3,.03,3800);
+    if(s===6||s===14)bell(d,tt,ch[(s>>3)+1]+36,.04);
+  }else if(T.style==='hard'){
+    if(s%4===0)hardKick(d,t);
+    if(s%4===2)grind(d,t,r,sd*1.7,.5);
+    if(T.clap.includes(s))clap(d,t,.9);
+    if(s%4===2)hat(d,tt,true,v);else if(s%2===1)hat(d,tt,false,v*.8);
+    if(s===0){padChord(d,t,ch,sd*16,.026);if(bar===0)noiseHit(d,t,'highpass',5200,.9,.12);}
+    if((s===0||s===6||s===10)&&bar>=0)screech(d,t,ch[(s>>2)%3]+(B?24:12)+12,sd*(s===0?5:3),.04);
+    if(bar===3&&s>=12)snare(d,t,.4+(s-12)*.1);
+  }else if(T.style==='dub'){
+    const bps=bpmOf(d)/60,rates=[2,3,4,6];
+    if(s===0){kick(d,t);wobble(d,t,r,sd*7.6,.22,bps*rates[bar]/(B?1:1));}
+    if(s===8){snare(d,t,1);wobble(d,t,r+(bar%2?7:0),sd*7.6,.22,bps*rates[(bar+2)%4]);}
+    if(s===10&&bar%2===1)kick(d,t);
+    if(s%2===0)hat(d,tt,s%8===6,v*.8);
+    if(s===0&&bar%2===0)padChord(d,t,ch,sd*16,.024);
+    if(s===3||s===11)bell(d,tt,ch[s%3]+36,.035);
+    if(s%4===3)shaker(d,tt,v);
+    if(bar===3&&s>=12)snare(d,t,.3+(s-12)*.1);
+  }
+}
 function playStep(d,step,t){
+  if(d.track.style){playGenre(d,step,t);return;}
   const T=d.track,s=step%16,bar=Math.floor(step/16)%4,ch=T.chords[bar],r=T.roots[bar],sd=d.stepDur,Ly=(S.free||S.finale)?5:S.layer;
   const tt=t+(s%2?sd*.1:0),v=.9+Math.random()*.2;       /* light swing and human feel on the off 16ths */
   if(s%4===0)kick(d,t);
@@ -995,7 +1092,7 @@ function drawCrew(id,tms,jump){
 const LABEL={vol:'Vol',low:'Low',mid:'Mid',high:'High'};
 const BMIN=118,BMAX=134;
 const bpmB=()=>BASE.B*(1+P.pitch/100);
-const bMin=()=>BASE.B-10,bMax=()=>BASE.B+6;
+const bMin=()=>Math.min(BASE.B-10,BASE.A-3),bMax=()=>Math.max(BASE.B+6,BASE.A+3);
 
 function deckHTML(id){
   const A=id==='A';
@@ -1017,7 +1114,7 @@ function deckHTML(id){
     <div class="platter" id="platter${id}"><div class="spin"><div class="notch"></div><div class="lbl">${id}</div></div></div>
     <div class="bpm" id="bpmBox${id}"><output id="bpm${id}">${BASE[id].toFixed(1)}</output><small>BPM</small></div></div>
     <div class="knobs">${knobs}</div>${kill}${extra}
-    <div class="tracks" data-tracks="${id}">${TRACKS[id].map((t,i)=>`<button class="trk" type="button" data-trk="${id}" data-i="${i}" aria-pressed="${i===0}" aria-label="Deck ${id} song ${i+1}: ${t.name}, ${t.bpm} BPM, ${t.key}">${t.bpm}</button>`).join('')}<button class="btn" type="button" data-play="${id}" disabled aria-label="Play or stop deck ${id}">Play</button></div></section>`;
+    <div class="tracks" data-tracks="${id}">${TRACKS[id].map((t,i)=>`<button class="trk${t.tag?' bonus':''}" type="button" data-trk="${id}" data-i="${i}" aria-pressed="${i===0}" aria-label="Deck ${id} song ${i+1}: ${t.name}, ${t.bpm} BPM, ${t.key}">${t.tag||t.bpm}</button>${i===2?`<button class="btn" type="button" data-play="${id}" disabled aria-label="Play or stop deck ${id}">Play</button>`:''}`).join('')}</div></section>`;
 }
 $('#decks').innerHTML=deckHTML('A')+deckHTML('B');
 $('#phrase').innerHTML=[0,1,2,3].map(b=>`<div class="bar4" data-bar="${b}"><small>Bar ${b+1}</small>${[0,1,2,3].map(i=>`<i class="${b===0&&i===0?'star':''}"></i>`).join('')}</div>`).join('');
@@ -1052,8 +1149,9 @@ function selectTrack(id,i,restart){
   $$(`[data-trk="${id}"]`).forEach(b=>b.setAttribute('aria-pressed',+b.dataset.i===i));
   if(id==='B')P.pitch=0;
   refreshTempoRange();
+  if(S.free){setPitch((BASE.A/BASE.B-1)*100);}   /* free mix: keep B matched to A so the beat gap holds still after a song swap */
   if(restart&&ctx){
-    if(id==='A'){if(decks.A.playing)startDeck('A');}
+    if(id==='A'){if(decks.A.playing){startDeck('A');if(decks.B.playing){const nb=nextBeat(decks.A,.1);startDeck('B',nb.t);decks.B.step=nb.n*4;}}}
     else if(decks.B.playing){if(decks.A.playing){const nb=nextBeat(decks.A,.1);startDeck('B',nb.t);decks.B.step=nb.n*4;}else startDeck('B');}
   }
 }
@@ -1362,7 +1460,7 @@ function enterFree(){
   $('#btnNext').hidden=true;['#btnGo','#btnDemo','#btnAssist','#btnRetry'].forEach(s=>{$(s).hidden=true;});
   resetTracks();ensureA();if(!decks.B.playing){setPitch(MATCH_PITCH);joinB(0);}
   applyLocks();refreshStamps();
-  say('New songs! Tap the glowing numbers to swap tracks.');$('#nowTxt').textContent='3 songs on each deck. Tap the glowing numbers!';
+  say('Bonus crate! Tap Y2K, HARD or DUB for new styles.');$('#nowTxt').textContent='6 songs per deck. Try the Y2K, HARD and DUB crate!';
   $$('.tracks').forEach(e=>e.classList.add('new'));
   showCue('NEW SONGS','cueNext','[data-tracks="A"]','above',null,true);
   clearTimeout(CU.t);CU.t=setTimeout(hideCue,12000);
