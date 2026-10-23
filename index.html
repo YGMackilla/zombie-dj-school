@@ -888,6 +888,7 @@ function drawZombie(c,x,y,s,Z,o){
   c.save();c.translate(x,y);c.scale(sc*(1+pulse*.05),sc*(1-pulse*.07));
   c.fillStyle='rgba(0,0,0,.28)';c.beginPath();c.ellipse(0,0,s*.26,s*.05,0,0,6.2832);c.fill();
   c.translate(0,-pulse*s*.05);
+  if(o.lean)c.rotate(o.lean);
   for(const k of[-1,1]){rr(c,k*s*.09-s*.055,-s*.17,s*.11,s*.17,s*.04);paint(c,Z.pants,lw);}
   rr(c,-s*.17,-s*.44,s*.34,s*.29,s*.08);paint(c,Z.shirt,lw);
   c.fillStyle='rgba(255,255,255,.55)';rr(c,s*.03,-s*.36,s*.08,s*.08,s*.02);c.fill();
@@ -920,9 +921,11 @@ function drawZombie(c,x,y,s,Z,o){
   c.fillStyle=INK;circ(c,ex+s*.012,ey+s*.01,s*.03);c.fill();
   c.fillStyle='rgba(255,122,198,.7)';
   for(const k of[-1,1]){circ(c,k*s*.2,hy+s*.1,s*.04);c.fill();}
-  const open=talk?(.3+.7*Math.abs(Math.sin(tm*14))):0;
+  const open=o.face==='cheer'?(.55+.35*Math.abs(Math.sin(tm*6))):(talk?(.3+.7*Math.abs(Math.sin(tm*14))):0);
   c.strokeStyle=INK;c.lineWidth=lw*.7;c.lineCap='round';
   if(open>.05){c.fillStyle='#7a2447';c.beginPath();c.ellipse(0,hy+s*.12,s*.04,s*.035*open+s*.01,0,0,6.2832);c.fill();}
+  else if(o.face==='wince'){c.beginPath();c.moveTo(-s*.045,hy+s*.12);c.lineTo(-s*.022,hy+s*.105);c.lineTo(0,hy+s*.12);c.lineTo(s*.022,hy+s*.105);c.lineTo(s*.045,hy+s*.12);c.stroke();
+    c.fillStyle='#8fd0ff';c.beginPath();c.ellipse(s*.27,hy-s*.12,s*.022,s*.04,0,0,6.2832);c.fill();}
   else{c.beginPath();c.arc(0,hy+s*.09,s*.032,.15*Math.PI,.85*Math.PI);c.stroke();c.fillStyle='#fff';c.fillRect(-s*.012,hy+s*.118,s*.024,s*.02);}
   c.strokeStyle='#4a3a6a';c.lineWidth=lw*.6;c.beginPath();
   c.moveTo(-s*.25,hy+s*.12);c.lineTo(-s*.16,hy+s*.16);
@@ -1043,13 +1046,16 @@ function drawRoom(tms){
   const guides=[['mochi',.16,.94,.42],['gus',.84,.94,.42],['pip',.5,.97,.34]];
   (crowdTarget()>0?guides:[]).forEach(([k,fx,fy,sz])=>list.push({y:fy,z:ZOM[k],x:fx*w+sway(fx),yy:fy*h-jump,s:h*sz,o:{pulse:pu,tm:t,armsUp:jumping||RM.speaker===k&&talking||(S.finale&&pu>.2),talk:RM.speaker===k&&talking?1:0}}));
   const n=crowdTarget();
+  const BH=updateBehavior(tms,n);
   for(let i=0;i<n;i++){
     if(RM.born[i]==null)RM.born[i]=tms;
     const k=clamp((tms-RM.born[i])/800,0,1),e=1-Math.pow(1-k,3),sp=SPOTS[i],fy=sp[1];
     const sz=.25+.12*((fy-.68)/.24);
-    list.push({y:fy,z:CROWD[i],x:sp[0]*w+sway(i),yy:fy*h+(1-e)*h*.08-jump,s:h*sz,o:{pulse:pu,tm:t+i*.4,scale:e,armsUp:jumping||(pu>.25&&i%2===0&&L>.5)}});
+    const op=dancerOpts(BH,i,t,pu,L,jumping);op.scale=e;
+    list.push({y:fy,idx:i,z:CROWD[i],x:sp[0]*w+sway(i),yy:fy*h+(1-e)*h*.08-jump,s:h*sz,o:op});
   }
   list.sort((a,b)=>a.y-b.y).forEach(z=>drawZombie(c,z.x,z.yy,z.s,z.z,z.o));
+  drawThought(c,BH,list,w,h);
   if(!n&&!S.finale){
     c.fillStyle='rgba(255,244,230,.8)';c.font='800 '+Math.round(h*.07)+'px Nunito,sans-serif';c.textAlign='center';
     c.fillText('The dance floor is empty...',w/2,h*.7);
@@ -1065,6 +1071,76 @@ function drawRoom(tms){
   const vg=c.createRadialGradient(w/2,h*.5,h*.35,w/2,h*.5,Math.max(w,h)*.7);vg.addColorStop(0,'rgba(10,6,25,0)');vg.addColorStop(1,'rgba(10,6,25,.5)');
   c.fillStyle=vg;c.fillRect(0,0,w,h);
   c.restore();
+}
+
+/* ---------- crowd behavior (Free Mix): the dancers read your mix, react to the genre, and think out loud ---------- */
+const THINK={
+  sync:['so smooth!','perfect mix!','in sync!','yes yes yes!','that blend!'],
+  clash:['huh?','off beat...','two songs?','ow, my ears','not quite...'],
+  solo:['add the other deck!','what comes next?','more!'],
+  idle:['play something?','hello?','brains... and beats?'],
+  house:['nice groove','bass!','mmm brains','feel it'],
+  y2k:['glow stick time!','so 2000s!','ooh sparkly','rave!'],
+  hard:['HARDER!','my neck!','feel the kick','fist pump!'],
+  dub:['wub wub','drop it!','the bass...','so heavy']
+};
+function crowdMood(){
+  if(!S.free||!ctx)return null;
+  const a=decks.A.playing&&chanLevel('A')>.12,b=decks.B.playing&&chanLevel('B')>.12;
+  if(a&&b){const l=lateMs();return(Math.abs(bpmOf(decks.A)-bpmOf(decks.B))<.6&&l!=null&&Math.abs(l)<=45)?'sync':'clash';}
+  return(a||b)?'solo':'idle';
+}
+function crowdStyle(){
+  const id=chanLevel('A')>=chanLevel('B')?'A':'B';
+  return decks[id].playing?(decks[id].track.style||'house'):'house';
+}
+function updateBehavior(tms,n){
+  const raw=crowdMood(),B=RM.bh||(RM.bh={mood:'idle',raw:null,since:0,th:null,next:tms+2500});
+  if(raw==null){B.on=false;B.th=null;return B;}
+  B.on=true;
+  if(raw!==B.raw){B.raw=raw;B.since=tms;}
+  if(raw!==B.mood&&tms-B.since>900){
+    B.mood=raw;
+    if(raw==='sync'&&!S.reduced){RM.flashT=tms;RM.confetti=RM.confetti||[];for(let i=0;i<26;i++)RM.confetti.push({x:Math.random()*RM.w,y:RM.h*(.3+Math.random()*.3),vx:(Math.random()-.5)*60,vy:-30+Math.random()*60,a:Math.random()*6,va:(Math.random()-.5)*10,s:2+Math.random()*2.5,col:PAL[i%4]});}
+    B.next=Math.min(B.next,tms+600);
+  }
+  B.style=crowdStyle();
+  if(B.th&&tms>B.th.until)B.th=null;
+  if(!B.th&&tms>B.next&&n>0){
+    const pool=(B.mood==='sync'||B.mood==='clash'||B.mood==='idle')&&Math.random()<.65?THINK[B.mood]:(Math.random()<.5&&B.mood==='solo'?THINK.solo:THINK[B.style]);
+    B.th={i:Math.floor(Math.random()*n),text:pool[Math.floor(Math.random()*pool.length)],until:tms+2600};
+    B.next=tms+2600+2200+Math.random()*2600;
+  }
+  return B;
+}
+function dancerOpts(B,i,t,pu,L,jumping){
+  const base={pulse:pu,tm:t+i*.4,armsUp:jumping||(pu>.25&&i%2===0&&L>.5)};
+  if(!B||!B.on)return base;
+  const o=base;
+  if(B.mood==='sync'){o.armsUp=true;o.face='cheer';o.pulse=pu*1.15;}
+  else if(B.mood==='clash'){o.armsUp=false;o.face='wince';o.pulse=pu*.4;o.lean=S.reduced?0:Math.sin(t*9+i*2)*.07;}
+  if(B.mood!=='clash'){
+    if(B.style==='y2k'){o.armsUp=pu>.1||i%2===0&&Math.sin(t*3+i)>0;o.pulse=pu*1.3;}
+    else if(B.style==='hard'){o.armsUp=pu>.12;o.pulse=pu*1.4;o.lean=S.reduced?0:(pu>.1?.09:0)+Math.sin(t*2+i)*.03;}
+    else if(B.style==='dub'){o.armsUp=false;o.pulse=pu*.6;o.lean=S.reduced?0:Math.sin(t*1.3+i*.8)*.13;}
+  }
+  return o;
+}
+function drawThought(c,B,items,w,h){
+  if(!B||!B.th)return;
+  const it=items.find(z=>z.idx===B.th.i);if(!it)return;
+  const fs=Math.max(12,Math.round(h*.075));c.font='800 '+fs+'px Nunito,sans-serif';c.textAlign='center';c.textBaseline='middle';
+  const tw=c.measureText(B.th.text).width+fs*1.2,bh=fs*1.7;
+  let bx=clamp(it.x,tw/2+4,w-tw/2-4),by=it.yy-it.s*.98-bh*.8;if(by<bh/2+2)by=bh/2+2;
+  const age=clamp((performance.now()-(B.th.until-2600))/180,0,1),sc=S.reduced?1:(.6+.4*age);
+  c.save();c.translate(bx,by);c.scale(sc,sc);
+  c.fillStyle='rgba(255,255,255,.96)';c.strokeStyle=INK;c.lineWidth=2;
+  rr(c,-tw/2,-bh/2,tw,bh,bh/2);c.fill();c.stroke();
+  c.fillStyle=INK;c.fillText(B.th.text,0,1);
+  c.restore();
+  const tx=clamp(it.x,bx-tw*.3,bx+tw*.3);
+  c.fillStyle='rgba(255,255,255,.96)';c.strokeStyle=INK;c.lineWidth=1.5;
+  circ(c,tx,by+bh*.62,fs*.2);c.fill();c.stroke();circ(c,tx+(it.x-tx)*.5,by+bh*.95,fs*.12);c.fill();c.stroke();
 }
 function celebrateRoom(){
   const now=performance.now();RM.jumpStart=now;RM.jumpUntil=now+2200;RM.flashT=now;
