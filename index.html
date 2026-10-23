@@ -350,6 +350,15 @@ body.reduced .mini16 i.star,body.reduced .bar4 i.star{animation:none}
 @media (orientation:landscape) and (max-height:640px){#splash .ovc{flex-direction:row;gap:18px;flex-wrap:wrap;justify-content:center}#splash .ovc canvas{width:110px;height:123px}#splash .spT{font-size:40px}}
 @media (prefers-reduced-motion:reduce){#splash .ovc *{animation:none!important}}
 body.reduced #splash .ovc *{animation:none!important}
+/* big first-time cues: READ ME, then HIT NEXT */
+.cue{position:fixed;z-index:80;left:0;top:0;pointer-events:none;white-space:nowrap;background:var(--butter);color:#3a2d00;border:4px solid #3a2d00;border-radius:22px;padding:6px 22px 8px;font-family:var(--font-d);font-weight:800;font-size:clamp(30px,9.5vw,50px);line-height:1;letter-spacing:.02em;box-shadow:0 6px 0 #3a2d00,0 0 30px rgba(255,226,122,.6);animation:cueBob .8s ease-in-out infinite}
+.cue.cueNext{background:var(--pink);color:var(--pink-ink);border-color:var(--pink-ink);box-shadow:0 6px 0 var(--pink-ink),0 0 30px rgba(255,122,198,.7)}
+.cue::after{content:"";position:absolute;left:var(--ax,50%);bottom:-22px;margin-left:-12px;border:12px solid transparent;border-top:14px solid currentColor;border-bottom:0;filter:none}
+@keyframes cueBob{50%{transform:translateY(-8px)}}
+.cueTarget{outline:5px solid var(--pink);outline-offset:4px;animation:spotp 1s ease-in-out infinite}
+@media (orientation:landscape) and (max-height:640px){.cue{font-size:26px;padding:3px 14px 5px;border-width:3px;border-radius:16px}.cue::after{bottom:-17px;border-width:9px;margin-left:-9px;border-top-width:11px}}
+@media (prefers-reduced-motion:reduce){.cue,.cueTarget{animation:none}}
+body.reduced .cue,body.reduced .cueTarget{animation:none}
 </style>
 <div class="wrap">
   <div class="rotate" id="rotateBar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M3 9l-1 3 3 1M21 15l1-3-3-1"/></svg><span>Turn your phone sideways for the best DJ view</span><button type="button" id="rotateX" aria-label="Dismiss tip">&times;</button></div>
@@ -482,6 +491,7 @@ body.reduced #splash .ovc *{animation:none!important}
     <button class="btn pri" id="btnCloseSheet" type="button">Done</button>
   </div>
 </div>
+<div class="cue" id="cue" hidden aria-hidden="true"></div>
 <script>
 'use strict';
 /* ---------- shared helpers and state ---------- */
@@ -1114,12 +1124,13 @@ function scrollToEl(el){
 /* read phase: glow on the lesson card + 10 s timer, then glide to the controls */
 function startReading(){
   LS.reading=true;LS.readLeft=10;
+  if(S.state!=='tour')showCue('READ ME','cueRead','#booCard');
   $('#booCard').classList.add('readGlow');$('#readbar').hidden=false;
   const f=$('#readFill');f.style.transition='none';f.style.width='100%';void f.offsetWidth;f.style.transition='width 10s linear';f.style.width='0%';
   $('#readTxt').textContent='Read me! Moving to the controls in 10s';
   setSpots([]);
 }
-function stopReadingUI(){LS.reading=false;$('#booCard').classList.remove('readGlow');$('#readbar').hidden=true;}
+function stopReadingUI(){hideCue();LS.reading=false;$('#booCard').classList.remove('readGlow');$('#readbar').hidden=true;}
 function endReading(){
   if(!LS.reading)return;
   stopReadingUI();
@@ -1277,7 +1288,7 @@ function updateSteps(){
   if(cur>=0){$('#nowTag').textContent=`Step ${cur+1} of ${L.steps.length}`;$('#nowTxt').textContent=L.steps[cur][0];}
 }
 function goLesson(i){
-  clearAssist();
+  hideCue();clearAssist();
   S.lesson=i;S.state='play';S.free=false;S.demoing=false;
   Object.assign(LS,{hold:0,stage:0,lastHint:'',misses:0,lastCredit:null,moved:false,nudged:false,swapped:false,sawStar:false,
     t0:performance.now(),reading:false,offered:false,noHint:0,corrA:null,auto:0,lastOk:0});
@@ -1312,6 +1323,7 @@ function complete(){
   $('#btnNext').hidden=false;['#btnGo','#btnDemo','#btnAssist','#btnRetry'].forEach(s=>{$(s).hidden=true;});
   refreshStamps();RM.talkUntil=performance.now()+3500;
   celebrateAtBar(i===4);
+  showCue('HIT NEXT','cueNext','#btnNext');
   scrollTo({top:0,behavior:S.reduced?'auto':'smooth'});
 }
 $('#btnNext').addEventListener('click',()=>{if(S.lesson<4)goLesson(S.lesson+1);else showFinale();});
@@ -1322,6 +1334,7 @@ $('#btnGo').addEventListener('click',()=>{const l=LESSONS[S.lesson].spots();scro
 $('#btnRetry').addEventListener('click',()=>{if(ctx)goLesson(S.lesson);});
 
 function showFinale(){
+  hideCue();markSeen();
   S.finale=true;S.state='finale';setSpots([]);celebrateRoom();sfx('cheer');
   const d=S.stats.tapDiffs.map(Math.abs),avg=d.length?Math.round(d.reduce((a,b)=>a+b,0)/d.length):0;
   $('#stats').innerHTML=[
@@ -1366,6 +1379,36 @@ function tap(){
 $('#tapPad').addEventListener('pointerdown',e=>{e.preventDefault();tap();});
 document.addEventListener('keydown',e=>{if(e.code==='Space'&&S.state==='play'&&S.lesson===0&&!S.free&&!(e.target.matches&&e.target.matches('input,button'))){e.preventDefault();tap();}});
 
+
+/* ---------- big first-time cues: READ ME, then HIT NEXT (only on the very first playthrough) ---------- */
+let SEEN=false;try{SEEN=localStorage.getItem('zdj_seen')==='1';}catch(e){}
+function markSeen(){SEEN=true;try{localStorage.setItem('zdj_seen','1');}catch(e){}}
+const CU={on:false,sel:null,tgt:null,t:0};
+function showCue(text,kind,sel){
+  if(SEEN)return;
+  hideCue();
+  const c=$('#cue');c.textContent=text;c.className='cue '+(kind||'');c.hidden=false;
+  CU.on=true;CU.sel=sel;CU.tgt=$(sel);
+  if(kind==='cueNext'&&CU.tgt)CU.tgt.classList.add('cueTarget');
+}
+function hideCue(){
+  clearTimeout(CU.t);CU.on=false;$('#cue').hidden=true;
+  $$('.cueTarget').forEach(e=>e.classList.remove('cueTarget'));
+}
+function placeCue(){
+  if(!CU.on)return;
+  const c=$('#cue'),t=CU.tgt;
+  if(!t||t.hidden||t.closest('[hidden]')){c.style.visibility='hidden';return;}
+  const r=t.getBoundingClientRect();
+  if(!r.width||!r.height){c.style.visibility='hidden';return;}
+  const w=c.offsetWidth,h=c.offsetHeight,vw=innerWidth,cx=r.left+r.width/2;
+  const left=clamp(cx-w/2,8,vw-w-8);
+  let top=r.top-h-30;if(top<8)top=8;
+  c.style.visibility='visible';c.style.transform='';
+  c.style.left=left+'px';c.style.top=top+'px';
+  c.style.setProperty('--ax',clamp(cx-left,24,w-24)+'px');
+}
+
 /* ---------- guided tour ---------- */
 const TOUR=[
  {who:'mochi',sel:'.room',title:'The club',text:"Finish lessons to fill the dance floor."},
@@ -1381,7 +1424,8 @@ function openTour(first){
   $('#tourDots').innerHTML=TOUR.map(()=>'<i></i>').join('');showTour();
 }
 function showTour(){
-  const T=TOUR[tourI];RM.speaker=T.who;RM.talkUntil=performance.now()+4500;
+  const T=TOUR[tourI];
+  if(tourFirst&&!SEEN){showCue('READ ME','cueRead','.tourCard');CU.t=setTimeout(()=>showCue('HIT NEXT','cueNext','#tourNext'),4500);}RM.speaker=T.who;RM.talkUntil=performance.now()+4500;
   $('#tourTitle').textContent=T.title;$('#tourText').textContent=T.text;$('#tourCount').textContent=`${tourI+1} of ${TOUR.length}`;
   $('#tourSkip').hidden=tourFirst;
   $('#tourBack').disabled=tourI===0;$('#tourNext').textContent=tourI===TOUR.length-1?(tourFirst?'Start lesson 1':'Done'):'Next';
@@ -1390,6 +1434,7 @@ function showTour(){
   const el=T.sel?$(T.sel):null;if(el)el.classList.add('tourHi');tourScroll(el);
 }
 function endTour(){
+  hideCue();
   $$('.tourHi').forEach(e=>e.classList.remove('tourHi'));
   $('#tour').hidden=true;document.body.classList.remove('touring');
   if(tourFirst){tourFirst=false;goLesson(0);}else S.state=tourPrev;
@@ -1416,7 +1461,7 @@ function drawPortrait(sel,key,tms,talk){
 }
 let lastAnchor=null;
 function frame(tms){
-  sizeRoom();popBeats();
+  sizeRoom();popBeats();placeCue();
   drawRoom(tms);drawAvatar(tms);
   if(!$('#tour').hidden)drawPortrait('#tourAv',RM.speaker,tms,tms<RM.talkUntil);
   drawCrew('#splashCv',tms,true);drawCrew('#startCv',tms,false);drawCrew('#finCv',tms,true);
